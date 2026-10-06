@@ -1,0 +1,26 @@
+# STAGE 1 — Your first workflow
+# Concepts: workflow, event, job, runner, step, `run`, `uses`
+name: 01 Hello
+
+on:
+  push:
+  workflow_dispatch:        # adds a "Run workflow" button in the Actions tab
+
+jobs:
+  hello:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Say hello
+        run: echo "Hello from GitHub Actions!"
+
+      - name: Show runner info
+        run: |
+          uname -a
+          date
+          pwd
+
+      - name: Check out the repo     # without this the runner has NO code
+        uses: actions/checkout@v4
+
+      - name: List files
+        run: ls -la

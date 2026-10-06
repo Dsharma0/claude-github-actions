@@ -1,0 +1,10 @@
+{
+  "name": "gha-practice-app",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "test": "node --test",
+    "lint": "node --check app.js",
+    "build": "mkdir -p dist && cp app.js dist/"
+  }
+}

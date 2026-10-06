@@ -1,0 +1,25 @@
+# STAGE 5b — A reusable workflow (trigger: workflow_call)
+name: 05 Reusable (called)
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+    outputs:
+      result:
+        value: ${{ jobs.run.outputs.result }}
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    outputs:
+      result: ${{ steps.r.outputs.result }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/greet          # local composite action
+        with:
+          who: ${{ inputs.environment }}
+      - id: r
+        run: echo "result=deployed-${{ inputs.environment }}" >> "$GITHUB_OUTPUT"

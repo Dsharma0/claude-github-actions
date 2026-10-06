@@ -1,0 +1,71 @@
+# STAGE 7 — Advanced patterns: PR automation, dynamic matrix, security, hardening
+name: 07 Advanced
+
+on:
+  pull_request:
+    types: [opened, synchronize, labeled]
+  workflow_dispatch:
+
+permissions: {}                       # deny everything by default; grant per job
+
+jobs:
+  # 1) Auto-label / comment on PRs using the gh CLI
+  pr-comment:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --repo "${{ github.repository }}" \
+            --body "Thanks @${{ github.actor }}! CI is running."
+
+  # 2) Dynamic matrix built from JSON at runtime
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+    steps:
+      - id: m
+        run: echo 'matrix={"service":["api","web","worker"]}' >> "$GITHUB_OUTPUT"
+
+  build-services:
+    needs: plan
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - run: echo "Building ${{ matrix.service }}"
+
+  # 3) Security: pin third-party actions to a full commit SHA in real projects
+  #    uses: owner/action@<40-char-sha>   # v1.2.3
+  #    And NEVER put untrusted input directly in `run:` (script injection):
+  injection-safe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: BAD  (do not do this):  run: echo "${{ github.event.pull_request.title }}"
+        run: echo "see comment above"
+      - name: GOOD (pass through env)
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: echo "$TITLE"
+
+  # 4) Service container: Postgres alongside your tests
+  db-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready" --health-interval 5s
+          --health-timeout 5s --health-retries 5
+    steps:
+      - run: |
+          sudo apt-get install -y postgresql-client >/dev/null
+          PGPASSWORD=test psql -h localhost -U postgres -c "select version();"

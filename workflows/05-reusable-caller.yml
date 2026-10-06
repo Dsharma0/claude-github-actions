@@ -1,0 +1,25 @@
+# STAGE 5a — Calls a reusable workflow (needs 05-reusable-called.yml in the same folder)
+name: 05 Reusable Caller
+
+on:
+  workflow_dispatch:
+
+jobs:
+  call-dev:
+    uses: ./.github/workflows/05-reusable-called.yml
+    with:
+      environment: dev
+    secrets: inherit
+
+  call-staging:
+    needs: call-dev
+    uses: ./.github/workflows/05-reusable-called.yml
+    with:
+      environment: staging
+    secrets: inherit
+
+  show-output:
+    needs: call-staging
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Reusable returned ${{ needs.call-staging.outputs.result }}"

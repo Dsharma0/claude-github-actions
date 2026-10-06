@@ -1,0 +1,71 @@
+# STAGE 2 — Triggers, filters, contexts, expressions, env vars, outputs
+name: 02 Triggers and Contexts
+
+on:
+  push:
+    branches: [main, "feature/**"]
+    paths-ignore: ["**.md"]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"         # Mondays 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      name:
+        description: "Who to greet"
+        required: true
+        default: "world"
+      shout:
+        type: boolean
+        default: false
+
+env:
+  WORKFLOW_LEVEL: "visible to all jobs"
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    env:
+      JOB_LEVEL: "visible to this job"
+    steps:
+      - name: Dump contexts
+        run: |
+          echo "event:   ${{ github.event_name }}"
+          echo "ref:     ${{ github.ref }}"
+          echo "actor:   ${{ github.actor }}"
+          echo "sha:     ${{ github.sha }}"
+          echo "runner:  ${{ runner.os }}"
+          echo "inputs:  ${{ inputs.name }}"
+
+      - name: Env vars
+        env:
+          STEP_LEVEL: "visible to this step"
+        run: echo "$WORKFLOW_LEVEL | $JOB_LEVEL | $STEP_LEVEL"
+
+      - name: Only on main
+        if: github.ref == 'refs/heads/main'
+        run: echo "This is main"
+
+      - name: Only on PRs
+        if: github.event_name == 'pull_request'
+        run: echo "PR #${{ github.event.pull_request.number }}"
+
+      - name: Shout (manual runs only)
+        if: inputs.shout
+        run: echo "${{ inputs.name }}!!!" | tr a-z A-Z
+
+      - name: Set a step output
+        id: vers
+        run: echo "version=1.2.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      - name: Use the output
+        run: echo "Version is ${{ steps.vers.outputs.version }}"
+
+      - name: Job summary (shows on the run page)
+        run: |
+          echo "### Run summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "- version: ${{ steps.vers.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Status functions
+        if: always()            # also: success(), failure(), cancelled()
+        run: echo "I run even if earlier steps failed"

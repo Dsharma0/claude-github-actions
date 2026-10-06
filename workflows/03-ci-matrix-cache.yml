@@ -1,0 +1,89 @@
+# STAGE 3 — Real CI: multiple jobs, needs, matrix, cache, artifacts, concurrency
+name: 03 CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel older runs of the same branch/PR when a new commit arrives
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read              # least privilege for GITHUB_TOKEN
+
+defaults:
+  run:
+    working-directory: app
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm run lint
+
+  test:
+    needs: lint                        # runs after lint passes
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [20, 22]
+        exclude:
+          - os: windows-latest
+            node: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          # cache: npm            # enable once you have package-lock.json
+          # cache-dependency-path: app/package-lock.json
+      - run: npm test
+
+  # Manual caching example (use when setup-* doesn't cache for you)
+  cache-demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        id: cache
+        with:
+          path: ~/.cache/demo
+          key: demo-${{ runner.os }}-${{ hashFiles('app/package.json') }}
+      - if: steps.cache.outputs.cache-hit != 'true'
+        run: mkdir -p ~/.cache/demo && date > ~/.cache/demo/built-at.txt
+      - run: cat ~/.cache/demo/built-at.txt
+
+  build:
+    needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: app/dist
+          retention-days: 7
+
+  verify-artifact:
+    needs: build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - run: ls -R dist
